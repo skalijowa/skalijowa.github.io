@@ -151,10 +151,10 @@
       <label for="name">Tvoje jméno</label>
       <input id="name" type="text" maxlength="20" placeholder="Např. Honza" autocomplete="off">
       <div class="levels four" id="levels">
-        <button class="level" data-sec="10" aria-pressed="false">Superlehká<small>10 s</small></button>
-        <button class="level" data-sec="8" aria-pressed="false">Lehká<small>8 s</small></button>
-        <button class="level" data-sec="5" aria-pressed="true">Střední<small>5 s</small></button>
-        <button class="level" data-sec="4" aria-pressed="false">Těžká<small>4 s</small></button>
+        <button class="level" data-sec="15" aria-pressed="false">Superlehká<small>15 s</small></button>
+        <button class="level" data-sec="10" aria-pressed="false">Lehká<small>10 s</small></button>
+        <button class="level" data-sec="8" aria-pressed="true">Střední<small>8 s</small></button>
+        <button class="level" data-sec="5" aria-pressed="false">Těžká<small>5 s</small></button>
       </div>
       <div class="levels" style="grid-template-columns:1fr">
         <button class="level" id="soundBtn" type="button">🔊 Zvuk zapnutý</button>
@@ -206,7 +206,7 @@
   var LETTERS = ["C", "D", "E", "F", "G", "A", "H"];
   var MIN_STEP = -2;   // c1 (střední c, pomocná linka pod osnovou)
   var MAX_STEP = 12;   // c3
-  var LEVELS = { 10: "Superlehká", 8: "Lehká", 5: "Střední", 4: "Těžká" };
+  var LEVELS = { 15: "Superlehká", 10: "Lehká", 8: "Střední", 5: "Těžká" };
   var N_NOTES = 6, N_VALUES = 1, N_THEORY = 3;   // dohromady 10 otázek
   var THEORY_EXTRA = 3;                          // bonus sekund pro teorii
   var TOP = 10;
@@ -247,14 +247,14 @@
     try { localStorage.setItem(STORE, JSON.stringify(data)); } catch (e) {}
   }
   var store = load();
-  store.board = store.board || {};
+  store.board2 = store.board2 || {};
 
   // ---- Prvky ---------------------------------------------------------
   var $ = function (id) { return document.getElementById(id); };
   var elStart = $("start"), elGame = $("game"), elEnd = $("end");
   var elName = $("name"), elTimer = $("timer"), elAnswers = $("answers");
   var elStaff = $("staff"), elPrompt = $("prompt");
-  var sec = 5;
+  var sec = 8;
 
   elName.value = store.name || "";
 
@@ -281,7 +281,7 @@
 
   // ---- Žebříček ------------------------------------------------------
   function boardHtml(level, highlight) {
-    var list = store.board[level] || [];
+    var list = store.board2[level] || [];
     if (!list.length) return '<p class="empty">Zatím tu nikdo není. Buď první!</p>';
     var rows = "";
     list.forEach(function (r, i) {
@@ -520,11 +520,11 @@
       time: Math.round(totalTime * 100) / 100,
       ts: Date.now()
     };
-    var list = (store.board[sec] || []).slice();
+    var list = (store.board2[sec] || []).slice();
     list.push(entry);
     list.sort(function (a, b) { return (b.correct - a.correct) || (a.time - b.time); });
     var idx = list.indexOf(entry);
-    store.board[sec] = list.slice(0, TOP);
+    store.board2[sec] = list.slice(0, TOP);
     save(store);
 
     var good = correct > 5;
