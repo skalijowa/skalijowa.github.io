@@ -128,6 +128,9 @@
         <button class="level" data-sec="4" aria-pressed="true">Střední<small>4 s</small></button>
         <button class="level" data-sec="3" aria-pressed="false">Těžká<small>3 s</small></button>
       </div>
+      <div class="levels" style="grid-template-columns:1fr">
+        <button class="level" id="soundBtn" type="button">🔊 Zvuk zapnutý</button>
+      </div>
       <button class="primary" id="go">Začít kvíz</button>
     </div>
 
@@ -135,12 +138,12 @@
       <h2 id="boardTitle">Žebříček</h2>
       <div id="board"></div>
     </div>
-    <p class="hint">Kvíz má 10 otázek: noty, délky not a základy teorie (na teorii máš o 3 sekundy víc). Za správnou odpověď dostaneš 100 bodů a až 50 bodů navíc za rychlost. Žebříček řadí podle bodů, při shodě rozhoduje celkový čas. Odpovídat můžeš i klávesami 1–4.</p>
+    <p class="hint">Kvíz má 10 otázek: noty, délky not a základy teorie (na teorii máš o 3 sekundy víc). Žebříček řadí podle počtu správných odpovědí, při shodě rozhoduje celkový čas. Odpovídat můžeš i klávesami 1–4. Čísla u not značí oktávu: C1 je střední c, C2 o oktávu výš a C3 je nejvyšší nota.</p>
   </section>
 
   <!-- KVÍZ -->
   <section id="game" class="hidden">
-    <div class="hud"><span id="qnum">1 / 10</span><span id="score">Body: 0</span></div>
+    <div class="hud"><span id="qnum">1 / 10</span><span id="score">Správně: 0</span></div>
     <div class="bar"><div id="timer"></div></div>
     <div class="card" style="padding:12px 14px">
       <p class="prompt" id="prompt"></p>
@@ -174,7 +177,6 @@
   var LEVELS = { 5: "Lehká", 4: "Střední", 3: "Těžká" };
   var N_NOTES = 6, N_VALUES = 1, N_THEORY = 3;   // dohromady 10 otázek
   var THEORY_EXTRA = 3;                          // bonus sekund pro teorii
-  var BASE_POINTS = 100, SPEED_POINTS = 50;
   var TOP = 10;
   var STORE = "hudebni-challenge-v1";
 
@@ -235,6 +237,11 @@
     return a;
   }
   function letterOf(step) { return LETTERS[(((step - MIN_STEP) % 7) + 7) % 7]; }
+  // název s oktávou: c1–h1 = 1, c2–h2 = 2, c3 = 3
+  function labelOf(step) {
+    var oct = step < 5 ? 1 : (step < 12 ? 2 : 3);
+    return letterOf(step) + oct;
+  }
 
   // ---- Žebříček ------------------------------------------------------
   function boardHtml(level, highlight) {
@@ -243,11 +250,10 @@
     var rows = "";
     list.forEach(function (r, i) {
       rows += '<tr class="' + (r === highlight || (highlight && r.ts === highlight.ts) ? "me" : "") + '">' +
-        '<td class="n">' + (i + 1) + ".</td><td>" + esc(r.name) + '</td><td class="n">' + r.points +
+        '<td class="n">' + (i + 1) + ".</td><td>" + esc(r.name) +
         '</td><td class="n">' + r.correct + '/10</td><td class="n">' + fmt(r.time) + "</td></tr>";
     });
-    return "<table><thead><tr><th class=\"n\">#</th><th>Jméno</th><th class=\"n\">Body</th>" +
-      "<th class=\"n\">Správně</th><th class=\"n\">Čas</th></tr></thead><tbody>" + rows + "</tbody></table>";
+    return "<table><thead><tr><th class=\"n\">#</th><th>Jméno</th><th class=\"n\">Správně</th><th class=\"n\">Čas</th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
   function renderBoard() {
     $("boardTitle").textContent = "Žebříček – " + LEVELS[sec] + " (" + sec + " s)";
@@ -334,9 +340,12 @@
     var steps = [];
     for (var s = MIN_STEP; s <= MAX_STEP; s++) steps.push(s);
     shuffle(steps).slice(0, N_NOTES).forEach(function (st) {
-      var ans = letterOf(st);
-      var wrong = shuffle(LETTERS.filter(function (l) { return l !== ans; })).slice(0, 3);
-      qs.push({ type: "note", step: st, prompt: "Jaká je to nota?", answer: ans, options: shuffle(wrong.concat(ans)) });
+      var ans = labelOf(st);
+      var all = steps.map(labelOf);
+      // jedna špatná odpověď má stejné písmeno v jiné oktávě, aby záleželo i na oktávě
+      var same = shuffle(all.filter(function (l) { return l !== ans && l.charAt(0) === ans.charAt(0); }))[0];
+      var others = shuffle(all.filter(function (l) { return l.charAt(0) !== ans.charAt(0); })).slice(0, 2);
+      qs.push({ type: "note", step: st, prompt: "Jaká je to nota?", answer: ans, options: shuffle([ans, same].concat(others)) });
     });
 
     // délky not
@@ -357,8 +366,46 @@
     return shuffle(qs);
   }
 
+  // ---- Zvuky (syntetizované, bez souborů) ----------------------------
+  var actx = null;
+  function audio() {
+    if (store.sound === false) return null;
+    try {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === "suspended") actx.resume();
+      return actx;
+    } catch (e) { return null; }
+  }
+  function tone(freq, delay, dur, type, vol) {
+    var c = audio();
+    if (!c) return;
+    var o = c.createOscillator(), g = c.createGain();
+    var t0 = c.currentTime + delay;
+    o.type = type || "sine";
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol || 0.2, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g);
+    g.connect(c.destination);
+    o.start(t0);
+    o.stop(t0 + dur + 0.05);
+  }
+  function sfxOk() { tone(660, 0, 0.14, "triangle", 0.22); tone(880, 0.12, 0.25, "triangle", 0.22); }
+  function sfxBad() { tone(180, 0, 0.28, "sawtooth", 0.14); tone(130, 0.15, 0.4, "sawtooth", 0.14); }
+  function sfxWin() {
+    var n = [523, 659, 784], i;
+    for (i = 0; i < n.length; i++) tone(n[i], i * 0.16, 0.22, "square", 0.1);
+    var chord = [523, 659, 784, 1047];
+    for (i = 0; i < chord.length; i++) tone(chord[i], 0.5, 1.1, "triangle", 0.14);
+  }
+  function sfxLose() {
+    var n = [392, 370, 349, 330], i;
+    for (i = 0; i < n.length; i++) tone(n[i], i * 0.3, i === n.length - 1 ? 0.9 : 0.32, "sawtooth", 0.1);
+  }
+
   // ---- Hra -----------------------------------------------------------
-  var quiz, q, points, correct, totalTime, cur, limit, startTs, raf, locked;
+  var quiz, q, correct, totalTime, cur, limit, startTs, raf, locked;
 
   function show(el) {
     [elStart, elGame, elEnd].forEach(function (x) { x.classList.add("hidden"); });
@@ -369,7 +416,7 @@
     store.name = elName.value.trim().slice(0, 20);
     save(store);
     quiz = buildQuiz();
-    q = 0; points = 0; correct = 0; totalTime = 0;
+    q = 0; correct = 0; totalTime = 0;
     show(elGame);
     nextQuestion();
   }
@@ -382,7 +429,7 @@
     limit = sec + (cur.type === "text" ? THEORY_EXTRA : 0);
 
     $("qnum").textContent = q + " / " + quiz.length;
-    $("score").textContent = "Body: " + points;
+    $("score").textContent = "Správně: " + correct;
 
     elPrompt.textContent = cur.prompt;
     elPrompt.className = "prompt" + (cur.type === "text" ? " big" : "");
@@ -421,16 +468,13 @@
     var t = Math.min(limit, (performance.now() - startTs) / 1000);
     totalTime += t;
     var ok = value === cur.answer;
-    if (ok) {
-      correct++;
-      points += BASE_POINTS + Math.round(SPEED_POINTS * (1 - t / limit));
-    }
+    if (ok) { correct++; sfxOk(); } else { sfxBad(); }
 
     Array.prototype.forEach.call(elAnswers.children, function (b) {
       if (b.textContent === cur.answer) b.classList.add("ok");
     });
     if (btn && !ok) btn.classList.add("bad");
-    $("score").textContent = "Body: " + points;
+    $("score").textContent = "Správně: " + correct;
 
     setTimeout(nextQuestion, ok ? 500 : 1300);
   }
@@ -438,31 +482,43 @@
   function finish() {
     var entry = {
       name: store.name || "Anonym",
-      points: points,
       correct: correct,
       time: Math.round(totalTime * 100) / 100,
       ts: Date.now()
     };
     var list = (store.scores[sec] || []).slice();
     list.push(entry);
-    list.sort(function (a, b) { return (b.points - a.points) || (a.time - b.time); });
+    list.sort(function (a, b) { return (b.correct - a.correct) || (a.time - b.time); });
     var idx = list.indexOf(entry);
     store.scores[sec] = list.slice(0, TOP);
     save(store);
 
-    $("endTitle").textContent = points + " bodů";
-    var msg = correct + " z " + quiz.length + " správně, celkový čas " + fmt(entry.time) + ". ";
+    var good = correct > 5;
+    $("endTitle").textContent = correct + " / " + quiz.length + " správně";
+    var msg = (good ? "Skvělá práce! " : "Zkus to znovu, určitě to půjde líp. ") +
+              "Celkový čas " + fmt(entry.time) + ". ";
     if (idx < TOP) msg += "Jsi na " + (idx + 1) + ". místě v žebříčku (" + LEVELS[sec] + ").";
-    else msg += "Do první desítky to tentokrát nestačilo, zkus to znovu!";
+    else msg += "Do první desítky to tentokrát nestačilo.";
     $("endMsg").textContent = msg;
 
     $("endBoardTitle").textContent = "Žebříček – " + LEVELS[sec] + " (" + sec + " s)";
     $("endBoard").innerHTML = boardHtml(sec, idx < TOP ? entry : null);
     show(elEnd);
+    if (good) sfxWin(); else sfxLose();
   }
 
   // ---- Události ------------------------------------------------------
-  $("go").addEventListener("click", startGame);
+  function soundLabel() {
+    $("soundBtn").textContent = store.sound === false ? "🔇 Zvuk vypnutý" : "🔊 Zvuk zapnutý";
+  }
+  $("soundBtn").addEventListener("click", function () {
+    store.sound = (store.sound === false);
+    save(store);
+    soundLabel();
+    if (store.sound !== false) sfxOk();
+  });
+  soundLabel();
+  $("go").addEventListener("click", function () { audio(); startGame(); });
   $("again").addEventListener("click", function () { renderBoard(); show(elStart); });
   document.addEventListener("keydown", function (e) {
     if (elGame.classList.contains("hidden") || locked) return;
