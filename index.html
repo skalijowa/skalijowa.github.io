@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Notová challenge</title>
+<title>Hudební challenge</title>
 <style>
   :root {
     --bg: #e8eee5;
@@ -14,6 +14,7 @@
     --accent: #c2255c;
     --ok: #2f9e5b;
     --bad: #c92a2a;
+    --hl: #fff3bf;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -25,6 +26,7 @@
       --accent: #f06595;
       --ok: #51cf86;
       --bad: #ff6b6b;
+      --hl: #4a4220;
     }
   }
   * { box-sizing: border-box; }
@@ -80,21 +82,28 @@
   th, td { text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--line); }
   th { color: var(--muted); font-weight: 600; }
   tr:last-child td { border-bottom: 0; }
-  td.t { text-align: right; font-variant-numeric: tabular-nums; }
-  th.t { text-align: right; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.me td { background: var(--hl); }
   h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .empty { color: var(--muted); margin: 6px 0 0; }
 
   .hidden { display: none !important; }
 
   .hud { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 8px; }
   .bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; margin-bottom: 14px; }
   .bar > div { height: 100%; width: 100%; background: var(--accent); }
+  .prompt { margin: 0 0 4px; font-weight: 600; color: var(--muted); }
+  .prompt.big {
+    font-family: Georgia, "Iowan Old Style", serif;
+    font-size: 1.4rem; color: var(--ink); line-height: 1.3; padding: 14px 4px; margin: 0;
+  }
   svg.staff { width: 100%; height: auto; display: block; }
   .answers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
   .answers button {
-    font: inherit; font-size: 1.8rem; font-weight: 700; padding: 18px 0; cursor: pointer;
+    font: inherit; font-size: 1.8rem; font-weight: 700; padding: 18px 6px; cursor: pointer;
     border-radius: 12px; border: 2px solid var(--line); background: var(--paper); color: var(--ink);
   }
+  .answers.text button { font-size: 1.05rem; font-weight: 600; padding: 16px 8px; line-height: 1.25; }
   .answers button:active { transform: scale(0.98); }
   .answers button.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
   .answers button.bad { background: var(--bad); border-color: var(--bad); color: #fff; }
@@ -106,8 +115,8 @@
 </head>
 <body>
 <main>
-  <h1>Notová challenge</h1>
-  <p class="sub">Poznej noty od malého c po c'' v houslovém klíči.</p>
+  <h1>Hudební challenge</h1>
+  <p class="sub">Poznej noty od c¹ po c³ v houslovém klíči a vyzkoušej si základy hudební teorie.</p>
 
   <!-- ÚVOD -->
   <section id="start">
@@ -123,21 +132,19 @@
     </div>
 
     <div class="card">
-      <h2>Rekordy – 10 správně za sebou</h2>
-      <table>
-        <thead><tr><th>Obtížnost</th><th>Rekordman</th><th class="t">Čas</th></tr></thead>
-        <tbody id="records"></tbody>
-      </table>
+      <h2 id="boardTitle">Žebříček</h2>
+      <div id="board"></div>
     </div>
-    <p class="hint">Rekord platí jen za 10 správných odpovědí z 10. Do času se počítá rychlost tvých odpovědí. Odpovídat můžeš i klávesami 1–4.</p>
+    <p class="hint">Kvíz má 10 otázek: noty, délky not a základy teorie (na teorii máš o 3 sekundy víc). Za správnou odpověď dostaneš 100 bodů a až 50 bodů navíc za rychlost. Žebříček řadí podle bodů, při shodě rozhoduje celkový čas. Odpovídat můžeš i klávesami 1–4.</p>
   </section>
 
   <!-- KVÍZ -->
   <section id="game" class="hidden">
-    <div class="hud"><span id="qnum">1 / 10</span><span id="score">Správně: 0</span></div>
+    <div class="hud"><span id="qnum">1 / 10</span><span id="score">Body: 0</span></div>
     <div class="bar"><div id="timer"></div></div>
-    <div class="card" style="padding:10px 14px">
-      <svg id="staff" class="staff" viewBox="0 0 320 190" role="img" aria-label="Nota na notové osnově"></svg>
+    <div class="card" style="padding:12px 14px">
+      <p class="prompt" id="prompt"></p>
+      <svg id="staff" class="staff" viewBox="0 -6 320 202" role="img" aria-label="Notová osnova"></svg>
     </div>
     <div class="answers" id="answers"></div>
   </section>
@@ -149,6 +156,10 @@
       <p class="msg" id="endMsg"></p>
       <button class="primary" id="again">Hrát znovu</button>
     </div>
+    <div class="card">
+      <h2 id="endBoardTitle">Žebříček</h2>
+      <div id="endBoard"></div>
+    </div>
   </section>
 </main>
 
@@ -156,22 +167,39 @@
 (function () {
   "use strict";
 
-  // ---- Data ----------------------------------------------------------
-  // krok 0 = e' (spodní linka), každý krok o půl rozestupu nahoru
-  var NOTES = [
-    { name: "C", step: -2 }, // c'
-    { name: "D", step: -1 },
-    { name: "E", step: 0 },
-    { name: "F", step: 1 },
-    { name: "G", step: 2 },
-    { name: "A", step: 3 },
-    { name: "H", step: 4 },
-    { name: "C", step: 5 }  // c''
-  ];
+  // ---- Nastavení -----------------------------------------------------
   var LETTERS = ["C", "D", "E", "F", "G", "A", "H"];
+  var MIN_STEP = -2;   // c1 (střední c, pomocná linka pod osnovou)
+  var MAX_STEP = 12;   // c3
   var LEVELS = { 5: "Lehká", 4: "Střední", 3: "Těžká" };
-  var QUESTIONS = 10;
-  var STORE = "notova-challenge-v1";
+  var N_NOTES = 6, N_VALUES = 1, N_THEORY = 3;   // dohromady 10 otázek
+  var THEORY_EXTRA = 3;                          // bonus sekund pro teorii
+  var BASE_POINTS = 100, SPEED_POINTS = 50;
+  var TOP = 10;
+  var STORE = "hudebni-challenge-v1";
+
+  // Teoretické otázky pro začátečníky: [otázka, správně, [špatně x3]]
+  var THEORY = [
+    ["Kolik dob má celá nota?", "4", ["1", "2", "8"]],
+    ["Kolik dob má půlová nota?", "2", ["1", "3", "4"]],
+    ["Kolik dob má čtvrťová nota?", "1", ["2", "4", "půl doby"]],
+    ["Kolik dob má osminová nota?", "půl doby", ["1", "2", "4"]],
+    ["Kolik linek má notová osnova?", "5", ["4", "6", "7"]],
+    ["Co znamená značka f (forte)?", "hrát nahlas", ["hrát potichu", "hrát rychle", "hrát pomalu"]],
+    ["Co znamená značka p (piano)?", "hrát potichu", ["hrát nahlas", "hrát rychle", "hrát pomalu"]],
+    ["Co znamená výraz allegro?", "rychle", ["pomalu", "nahlas", "potichu"]],
+    ["Co znamená výraz adagio?", "pomalu", ["rychle", "nahlas", "živě"]],
+    ["Jaká nota následuje po E?", "F", ["D", "G", "H"]],
+    ["Jaká nota leží těsně pod C?", "H", ["D", "A", "G"]],
+    ["Kolik různých not (písmen) má stupnice C dur?", "7", ["5", "8", "12"]],
+    ["Jak se česky jmenuje tón, který anglicky značíme B?", "H", ["A", "C", "F"]],
+    ["Který klíč se nejčastěji používá pro housle a flétnu?", "houslový", ["basový", "altový", "tenorový"]],
+    ["Co dělá křížek (#) před notou?", "zvýší ji o půltón", ["sníží ji o půltón", "prodlouží ji", "ztiší ji"]],
+    ["Co dělá béčko (♭) před notou?", "sníží ji o půltón", ["zvýší ji o půltón", "zkrátí ji", "zesílí ji"]],
+    ["Co je to pomlka?", "označení ticha", ["hlasitá nota", "druh klíče", "konec skladby"]],
+    ["Kolik čtvrťových dob je ve čtyřčtvrťovém taktu (4/4)?", "4", ["2", "3", "8"]]
+  ];
+  var VALUES = ["celá", "půlová", "čtvrťová", "osminová"];
 
   // ---- Úložiště (localStorage v prohlížeči) --------------------------
   function load() {
@@ -181,12 +209,13 @@
     try { localStorage.setItem(STORE, JSON.stringify(data)); } catch (e) {}
   }
   var store = load();
-  store.records = store.records || {};
+  store.scores = store.scores || {};
 
   // ---- Prvky ---------------------------------------------------------
   var $ = function (id) { return document.getElementById(id); };
   var elStart = $("start"), elGame = $("game"), elEnd = $("end");
-  var elName = $("name"), elTimer = $("timer"), elAnswers = $("answers"), elStaff = $("staff");
+  var elName = $("name"), elTimer = $("timer"), elAnswers = $("answers");
+  var elStaff = $("staff"), elPrompt = $("prompt");
   var sec = 4;
 
   elName.value = store.name || "";
@@ -197,15 +226,32 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
+  function shuffle(a) {
+    a = a.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function letterOf(step) { return LETTERS[(((step - MIN_STEP) % 7) + 7) % 7]; }
 
-  function renderRecords() {
+  // ---- Žebříček ------------------------------------------------------
+  function boardHtml(level, highlight) {
+    var list = store.scores[level] || [];
+    if (!list.length) return '<p class="empty">Zatím tu nikdo není. Buď první!</p>';
     var rows = "";
-    [5, 4, 3].forEach(function (s) {
-      var r = store.records[s];
-      rows += "<tr><td>" + LEVELS[s] + " (" + s + " s)</td><td>" +
-        (r ? esc(r.name) : "–") + '</td><td class="t">' + (r ? fmt(r.time) : "–") + "</td></tr>";
+    list.forEach(function (r, i) {
+      rows += '<tr class="' + (r === highlight || (highlight && r.ts === highlight.ts) ? "me" : "") + '">' +
+        '<td class="n">' + (i + 1) + ".</td><td>" + esc(r.name) + '</td><td class="n">' + r.points +
+        '</td><td class="n">' + r.correct + '/10</td><td class="n">' + fmt(r.time) + "</td></tr>";
     });
-    $("records").innerHTML = rows;
+    return "<table><thead><tr><th class=\"n\">#</th><th>Jméno</th><th class=\"n\">Body</th>" +
+      "<th class=\"n\">Správně</th><th class=\"n\">Čas</th></tr></thead><tbody>" + rows + "</tbody></table>";
+  }
+  function renderBoard() {
+    $("boardTitle").textContent = "Žebříček – " + LEVELS[sec] + " (" + sec + " s)";
+    $("board").innerHTML = boardHtml(sec);
   }
 
   // ---- Obtížnost -----------------------------------------------------
@@ -214,16 +260,16 @@
       document.querySelectorAll(".level").forEach(function (x) { x.setAttribute("aria-pressed", "false"); });
       b.setAttribute("aria-pressed", "true");
       sec = +b.dataset.sec;
+      renderBoard();
     });
   });
 
   // ---- Kreslení osnovy -----------------------------------------------
-  function drawStaff(step) {
-    var s = 20;               // rozestup linek
-    var bottom = 130;         // y spodní linky (e')
-    var x0 = 14, x1 = 306;
-    var out = "";
+  // kind: undefined = čtvrťová, "whole", "half", "eighth"
+  function drawStaff(step, kind) {
+    var s = 20, bottom = 130, x0 = 14, x1 = 306;
     var ink = "var(--ink)";
+    var out = "";
 
     for (var i = 0; i < 5; i++) {
       var y = bottom - i * s;
@@ -231,8 +277,7 @@
     }
 
     // houslový klíč (kreslený tahem; počátek = linka g', jednotky = rozestup)
-    var gy = bottom - s; // linka g'
-    var cx = 62;
+    var gy = bottom - s, cx = 62;
     var p = function (a, b) { return (cx + a * s).toFixed(1) + "," + (gy + b * s).toFixed(1); };
     var d = "M" + p(-0.9, 2.0) +
       " C" + p(-0.5, 2.6) + " " + p(0.5, 2.4) + " " + p(0.5, 1.7) +
@@ -246,28 +291,74 @@
     out += '<path d="' + d + '" fill="none" stroke="' + ink + '" stroke-width="' + (s * 0.17) +
            '" stroke-linecap="round" stroke-linejoin="round"/>';
 
-    // nota
-    var ny = bottom - step * (s / 2);
-    var nx = 190;
-    if (step <= -2) { // pomocná linka pod osnovou (c')
-      out += '<line x1="' + (nx - 22) + '" x2="' + (nx + 22) + '" y1="' + (bottom + s) + '" y2="' + (bottom + s) +
+    var nx = 190, ny = bottom - step * (s / 2);
+
+    // pomocné linky
+    var lw = (kind === "whole") ? 26 : 22;
+    var ledger = function (st) {
+      var ly = bottom - st * (s / 2);
+      return '<line x1="' + (nx - lw) + '" x2="' + (nx + lw) + '" y1="' + ly + '" y2="' + ly +
              '" stroke="' + ink + '" stroke-width="1.5"/>';
-    }
-    out += '<ellipse cx="' + nx + '" cy="' + ny + '" rx="11.5" ry="8.5" transform="rotate(-20 ' + nx + " " + ny +
-           ')" fill="' + ink + '"/>';
-    var up = step < 4; // stopka nahoru u nižších not, dolů u vyšších
-    if (up) {
-      out += '<line x1="' + (nx + 10.5) + '" x2="' + (nx + 10.5) + '" y1="' + ny + '" y2="' + (ny - 56) +
+    };
+    if (step <= -2) out += ledger(-2);
+    for (var st = 10; st <= step; st += 2) out += ledger(st);
+
+    // hlavička
+    var open = (kind === "whole" || kind === "half");
+    var rx = (kind === "whole") ? 14 : 11.5;
+    var ry = (kind === "whole") ? 9.5 : 8.5;
+    out += '<ellipse cx="' + nx + '" cy="' + ny + '" rx="' + rx + '" ry="' + ry +
+           '" transform="rotate(-20 ' + nx + " " + ny + ')" ' +
+           (open ? 'fill="none" stroke="' + ink + '" stroke-width="3.2"' : 'fill="' + ink + '"') + "/>";
+
+    // stopka a praporek
+    if (kind !== "whole") {
+      var up = step < 4;
+      var sx = up ? nx + rx - 1 : nx - rx + 1;
+      var ty = up ? ny - 58 : ny + 58;
+      out += '<line x1="' + sx + '" x2="' + sx + '" y1="' + ny + '" y2="' + ty +
              '" stroke="' + ink + '" stroke-width="2"/>';
-    } else {
-      out += '<line x1="' + (nx - 10.5) + '" x2="' + (nx - 10.5) + '" y1="' + ny + '" y2="' + (ny + 56) +
-             '" stroke="' + ink + '" stroke-width="2"/>';
+      if (kind === "eighth") {
+        out += '<path d="M' + sx + "," + ty + " C" + (sx + 2) + "," + (ty + 14) + " " + (sx + 20) + "," + (ty + 20) + " " +
+               (sx + 14) + "," + (ty + 40) + '" fill="none" stroke="' + ink + '" stroke-width="3.5" stroke-linecap="round"/>';
+      }
     }
     elStaff.innerHTML = out;
   }
 
+  // ---- Sestavení kvízu -----------------------------------------------
+  function buildQuiz() {
+    var qs = [];
+
+    // noty: různé výšky v rozsahu c1–c3
+    var steps = [];
+    for (var s = MIN_STEP; s <= MAX_STEP; s++) steps.push(s);
+    shuffle(steps).slice(0, N_NOTES).forEach(function (st) {
+      var ans = letterOf(st);
+      var wrong = shuffle(LETTERS.filter(function (l) { return l !== ans; })).slice(0, 3);
+      qs.push({ type: "note", step: st, prompt: "Jaká je to nota?", answer: ans, options: shuffle(wrong.concat(ans)) });
+    });
+
+    // délky not
+    var kinds = shuffle([
+      { kind: "whole", name: "celá" }, { kind: "half", name: "půlová" },
+      { kind: "quarter", name: "čtvrťová" }, { kind: "eighth", name: "osminová" }
+    ]).slice(0, N_VALUES);
+    kinds.forEach(function (k) {
+      qs.push({ type: "value", step: 2, kind: k.kind === "quarter" ? undefined : k.kind,
+                prompt: "Jak se jmenuje tato nota podle délky?", answer: k.name, options: shuffle(VALUES) });
+    });
+
+    // teorie
+    shuffle(THEORY).slice(0, N_THEORY).forEach(function (t) {
+      qs.push({ type: "text", prompt: t[0], answer: t[1], options: shuffle(t[2].concat(t[1])) });
+    });
+
+    return shuffle(qs);
+  }
+
   // ---- Hra -----------------------------------------------------------
-  var q, correct, totalTime, current, options, startTs, raf, locked;
+  var quiz, q, points, correct, totalTime, cur, limit, startTs, raf, locked;
 
   function show(el) {
     [elStart, elGame, elEnd].forEach(function (x) { x.classList.add("hidden"); });
@@ -277,35 +368,34 @@
   function startGame() {
     store.name = elName.value.trim().slice(0, 20);
     save(store);
-    q = 0; correct = 0; totalTime = 0;
+    quiz = buildQuiz();
+    q = 0; points = 0; correct = 0; totalTime = 0;
     show(elGame);
     nextQuestion();
   }
 
-  function shuffle(a) {
-    for (var i = a.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var t = a[i]; a[i] = a[j]; a[j] = t;
-    }
-    return a;
-  }
-
   function nextQuestion() {
-    if (q >= QUESTIONS) return finish();
+    if (q >= quiz.length) return finish();
+    cur = quiz[q];
     q++;
     locked = false;
-    var prev = current;
-    do { current = NOTES[Math.floor(Math.random() * NOTES.length)]; } while (prev && current.step === prev.step);
+    limit = sec + (cur.type === "text" ? THEORY_EXTRA : 0);
 
-    var wrong = shuffle(LETTERS.filter(function (l) { return l !== current.name; })).slice(0, 3);
-    options = shuffle(wrong.concat(current.name));
+    $("qnum").textContent = q + " / " + quiz.length;
+    $("score").textContent = "Body: " + points;
 
-    $("qnum").textContent = q + " / " + QUESTIONS;
-    $("score").textContent = "Správně: " + correct;
-    drawStaff(current.step);
+    elPrompt.textContent = cur.prompt;
+    elPrompt.className = "prompt" + (cur.type === "text" ? " big" : "");
+    if (cur.type === "text") {
+      elStaff.classList.add("hidden");
+    } else {
+      elStaff.classList.remove("hidden");
+      drawStaff(cur.step, cur.kind);
+    }
 
+    elAnswers.className = "answers" + (cur.type === "note" ? "" : " text");
     elAnswers.innerHTML = "";
-    options.forEach(function (o, i) {
+    cur.options.forEach(function (o, i) {
       var b = document.createElement("button");
       b.textContent = o;
       b.setAttribute("aria-label", "Odpověď " + (i + 1) + ": " + o);
@@ -319,60 +409,68 @@
 
   function tick() {
     var elapsed = (performance.now() - startTs) / 1000;
-    var left = Math.max(0, 1 - elapsed / sec);
-    elTimer.style.width = (left * 100) + "%";
-    if (elapsed >= sec) { answer(null, null); return; }
+    elTimer.style.width = (Math.max(0, 1 - elapsed / limit) * 100) + "%";
+    if (elapsed >= limit) { answer(null, null); return; }
     raf = requestAnimationFrame(tick);
   }
 
-  function answer(letter, btn) {
+  function answer(value, btn) {
     if (locked) return;
     locked = true;
     cancelAnimationFrame(raf);
-    var t = Math.min(sec, (performance.now() - startTs) / 1000);
-    var ok = letter === current.name;
-    if (ok) { correct++; totalTime += t; }
+    var t = Math.min(limit, (performance.now() - startTs) / 1000);
+    totalTime += t;
+    var ok = value === cur.answer;
+    if (ok) {
+      correct++;
+      points += BASE_POINTS + Math.round(SPEED_POINTS * (1 - t / limit));
+    }
 
     Array.prototype.forEach.call(elAnswers.children, function (b) {
-      if (b.textContent === current.name) b.classList.add("ok");
+      if (b.textContent === cur.answer) b.classList.add("ok");
     });
     if (btn && !ok) btn.classList.add("bad");
-    $("score").textContent = "Správně: " + correct;
+    $("score").textContent = "Body: " + points;
 
-    setTimeout(nextQuestion, ok ? 450 : 1000);
+    setTimeout(nextQuestion, ok ? 500 : 1300);
   }
 
   function finish() {
-    var perfect = correct === QUESTIONS;
-    var title = $("endTitle"), msg = $("endMsg");
-    title.textContent = correct + " / " + QUESTIONS + " správně";
+    var entry = {
+      name: store.name || "Anonym",
+      points: points,
+      correct: correct,
+      time: Math.round(totalTime * 100) / 100,
+      ts: Date.now()
+    };
+    var list = (store.scores[sec] || []).slice();
+    list.push(entry);
+    list.sort(function (a, b) { return (b.points - a.points) || (a.time - b.time); });
+    var idx = list.indexOf(entry);
+    store.scores[sec] = list.slice(0, TOP);
+    save(store);
 
-    if (!perfect) {
-      msg.textContent = "Rekord vyžaduje všech 10 správně. Zkus to znovu!";
-    } else {
-      var rec = store.records[sec];
-      var name = store.name || "Anonym";
-      if (!rec || totalTime < rec.time) {
-        store.records[sec] = { name: name, time: Math.round(totalTime * 100) / 100 };
-        save(store);
-        msg.textContent = "Nový rekord (" + LEVELS[sec] + "): " + fmt(totalTime) + ", " + name + "!";
-      } else {
-        msg.textContent = "Bezchybně, čas " + fmt(totalTime) + ". Rekord " + fmt(rec.time) + " (" + rec.name + ") ale zůstává.";
-      }
-    }
+    $("endTitle").textContent = points + " bodů";
+    var msg = correct + " z " + quiz.length + " správně, celkový čas " + fmt(entry.time) + ". ";
+    if (idx < TOP) msg += "Jsi na " + (idx + 1) + ". místě v žebříčku (" + LEVELS[sec] + ").";
+    else msg += "Do první desítky to tentokrát nestačilo, zkus to znovu!";
+    $("endMsg").textContent = msg;
+
+    $("endBoardTitle").textContent = "Žebříček – " + LEVELS[sec] + " (" + sec + " s)";
+    $("endBoard").innerHTML = boardHtml(sec, idx < TOP ? entry : null);
     show(elEnd);
   }
 
   // ---- Události ------------------------------------------------------
   $("go").addEventListener("click", startGame);
-  $("again").addEventListener("click", function () { renderRecords(); show(elStart); });
+  $("again").addEventListener("click", function () { renderBoard(); show(elStart); });
   document.addEventListener("keydown", function (e) {
     if (elGame.classList.contains("hidden") || locked) return;
     var i = parseInt(e.key, 10);
-    if (i >= 1 && i <= 4) elAnswers.children[i - 1].click();
+    if (i >= 1 && i <= 4 && elAnswers.children[i - 1]) elAnswers.children[i - 1].click();
   });
 
-  renderRecords();
+  renderBoard();
 })();
 </script>
 </body>
