@@ -1,34 +1,219 @@
+
 <!DOCTYPE html>
 <html lang="cs">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Moje appky</title>
+
+  <!-- JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: system-ui, sans-serif;
-      max-width: 600px;
-      margin: 60px auto;
-      padding: 0 20px;
+      font-family: 'JetBrains Mono', monospace;
+      background: #09090f;
+      color: #e4e4ed;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 25px;
     }
-    ul { list-style: none; padding: 0; }
-    li { margin: 12px 0; }
+
+    .container {
+      width: 100%;
+      max-width: 620px;
+    }
+
+    .header {
+      margin-bottom: 40px;
+    }
+
+    .tag {
+      display: inline-block;
+      color: #a78bfa;
+      font-size: 12px;
+      margin-bottom: 18px;
+      padding: 7px 12px;
+      border: 1px solid #30244e;
+      border-radius: 6px;
+      background: #171124;
+    }
+
+    h1 {
+      font-size: clamp(28px, 6vw, 42px);
+      font-weight: 700;
+      letter-spacing: -2px;
+      margin-bottom: 12px;
+    }
+
+    h1 span {
+      color: #a78bfa;
+    }
+
+    .subtitle {
+      color: #77778d;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    .section-title {
+      color: #77778d;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 16px;
+    }
+
+    ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
     a {
-      display: block;
-      padding: 16px 20px;
-      border: 1px solid #ccc;
-      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 20px;
+      background: #11111b;
+      border: 1px solid #252536;
+      border-radius: 12px;
       text-decoration: none;
-      color: inherit;
+      color: #e4e4ed;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
     }
-    a:hover { background: #f3f3f3; }
+
+    a:hover {
+      background: #191729;
+      border-color: #8b5cf6;
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px #8b5cf61c;
+    }
+
+    .icon {
+      width: 46px;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #211a36;
+      border-radius: 10px;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+
+    .app-info {
+      flex: 1;
+    }
+
+    .app-name {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .app-description {
+      color: #77778d;
+      font-size: 11px;
+    }
+
+    .arrow {
+      color: #77778d;
+      font-size: 20px;
+      transition: all 0.25s ease;
+    }
+
+    a:hover .arrow {
+      color: #a78bfa;
+      transform: translateX(5px);
+    }
+
+    footer {
+      margin-top: 45px;
+      padding-top: 20px;
+      border-top: 1px solid #222230;
+      color: #55556a;
+      font-size: 11px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .status {
+      color: #4ade80;
+    }
+
+    @media (max-width: 480px) {
+      h1 {
+        letter-spacing: -1.5px;
+      }
+
+      a {
+        padding: 16px;
+      }
+    }
   </style>
 </head>
+
 <body>
-  <h1>Moje appky</h1>
-  <ul>
-    <li><a href="https://skalijowa.github.io/hudebni-challenge/">🎵 Hudební challenge</a></li>
-    <li><a href="https://skalijowa.github.io/exclusive-counter/">💰 Exclusive counter</a></li>
-  </ul>
+
+  <main class="container">
+
+    <header class="header">
+      <div class="tag">// PERSONAL PROJECTS</div>
+      <h1>Moje <span>appky.</span></h1>
+      <p class="subtitle">
+        Moje malé projekty, nástroje a experimenty.<br>
+        Všechno na jednom místě.
+      </p>
+    </header>
+
+    <div class="section-title">01 / Moje aplikace</div>
+
+    <ul>
+      <li>
+        <a href="https://skalijowa.github.io/hudebni-challenge/">
+          <div class="icon">🎵</div>
+          <div class="app-info">
+            <div class="app-name">Hudební challenge</div>
+            <div class="app-description">Music · Challenge</div>
+          </div>
+          <div class="arrow">→</div>
+        </a>
+      </li>
+
+      <li>
+        <a href="https://skalijowa.github.io/exclusive-counter/">
+          <div class="icon">💰</div>
+          <div class="app-info">
+            <div class="app-name">Exclusive counter</div>
+            <div class="app-description">Counter · Utility</div>
+          </div>
+          <div class="arrow">→</div>
+        </a>
+      </li>
+    </ul>
+
+    <footer>
+      <span>© 2026 · Moje appky</span>
+      <span class="status">● ALL SYSTEMS ONLINE</span>
+    </footer>
+
+  </main>
+
 </body>
 </html>
